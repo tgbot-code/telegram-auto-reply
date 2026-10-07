@@ -3,24 +3,20 @@ from telethon.sessions import StringSession
 import asyncio
 import time
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # ==========================================
-# RENDER ENVIRONMENT VARIABLES SE UTHAYEGA
+# RENDER ENVIRONMENT VARIABLES
 # ==========================================
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 SESSION_STRING = os.environ.get("SESSION_STRING")
 
-# ==========================================
-# SETTINGS
-# ==========================================
 INACTIVITY_MINUTES = 2
 is_away = True
 last_activity = time.time()
 
-# ==========================================
-# OFFLINE MESSAGE
-# ==========================================
 AWAY_MESSAGE = """╔══════════════════════╗
    💤  OFFLINE MODE  💤
 ╚══════════════════════╝
@@ -39,14 +35,8 @@ and I'll reply as soon as I'm back online. ✅
 
 — Sent automatically 🤖"""
 
-# ==========================================
-# BOT SETUP
-# ==========================================
 client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
-# ==========================================
-# AUTO-REPLY
-# ==========================================
 @client.on(events.NewMessage(incoming=True))
 async def auto_reply_handler(event):
     global last_activity
@@ -62,17 +52,11 @@ async def auto_reply_handler(event):
     except Exception as e:
         print(f"⚠️ Error: {e}")
 
-# ==========================================
-# ACTIVITY TRACKER
-# ==========================================
 @client.on(events.NewMessage(outgoing=True))
 async def activity_tracker(event):
     global last_activity
     last_activity = time.time()
 
-# ==========================================
-# COMMANDS
-# ==========================================
 @client.on(events.NewMessage(pattern=r'^/stop$'))
 async def stop_handler(event):
     global is_away
@@ -88,6 +72,21 @@ async def start_handler(event):
         await event.reply("🤖 Auto-reply ON")
 
 # ==========================================
+# 🌐 WEB SERVER (Render ke liye zaroori)
+# ==========================================
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    print(f"🌐 Web server started on port {port}")
+    server.serve_forever()
+
+# ==========================================
 # MAIN
 # ==========================================
 async def main():
@@ -100,4 +99,7 @@ async def main():
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
+    # Web server ko alag thread me chalao
+    threading.Thread(target=run_web_server, daemon=True).start()
+    # Bot chalao
     asyncio.run(main())
